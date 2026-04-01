@@ -51,22 +51,40 @@ app.get('/stats', async (req, res) => {
   }
 });
 
-// Tự động fetch mỗi 10 giây
+let lastPhien = null;
+
 async function autoFetch() {
   try {
     const r = await fetch(SOURCE_API);
     const data = await r.json();
-    await upsertPhien(data);
-    console.log(`[${new Date().toLocaleTimeString()}] Synced phien ${data.phien}`);
+
+    if (data.phien !== lastPhien) {
+      await upsertPhien(data);
+      lastPhien = data.phien;
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ Phiên mới: ${data.phien} | ${data.ket_qua} | Dự đoán: ${data.du_doan} ${data.ty_le}`);
+    }
   } catch (e) {
     console.error('Auto fetch error:', e.message);
   }
 }
 
+// GET /phien - trả về phiên hiện tại để HTML so sánh
+app.get('/phien', async (req, res) => {
+  try {
+    const r = await fetch(SOURCE_API);
+    const data = await r.json();
+    await upsertPhien(data);
+    lastPhien = data.phien;
+    res.json({ phien: data.phien, phien_hien_tai: data.phien_hien_tai });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Khởi động
 initDB().then(() => {
   autoFetch();
-  setInterval(autoFetch, 10000);
+  setInterval(autoFetch, 3000); // poll mỗi 3 giây
 
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
